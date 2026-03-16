@@ -69,6 +69,18 @@ func (c *Client) CapturePane(ctx context.Context, paneID string) (string, error)
 // SwitchToPane switches the client to the window and pane identified by
 // paneID (e.g. "%0"). This makes the target pane the active pane.
 func (c *Client) SwitchToPane(ctx context.Context, paneID string) error {
+	// First select the window, then the pane.
+	_, _ = c.run(ctx, "select-window", "-t", paneID)
 	_, err := c.run(ctx, "select-pane", "-t", paneID)
 	return err
+}
+
+// NewWindow creates a new tmux window running the given shell command.
+// It returns the pane ID of the new window's pane.
+func (c *Client) NewWindow(ctx context.Context, command string) (string, error) {
+	out, err := c.run(ctx, "new-window", "-P", "-F", "#{pane_id}", command)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
 }
