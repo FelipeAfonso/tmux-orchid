@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -22,9 +23,12 @@ func (m Model) View() string {
 		return "loading..."
 	}
 
-	// Spawn dialog is an overlay.
-	if m.mode == modeSpawn {
-		return m.viewSpawnDialog()
+	// Spawn dialogs are overlays.
+	if m.mode == modeSpawnAgent {
+		return m.viewSpawnAgentDialog()
+	}
+	if m.mode == modeSpawnDir {
+		return m.viewSpawnDirDialog()
 	}
 
 	sidebar := m.viewSidebar()
@@ -125,12 +129,10 @@ func (m Model) viewDetail() string {
 
 	var b strings.Builder
 
-	// Title.
 	agentTitle := titleStyle.Render(string(pa.Agent.Type))
 	b.WriteString(agentTitle)
 	b.WriteString("\n\n")
 
-	// Status.
 	status := string(pa.Agent.Status)
 	stStyle := statusStyle(status)
 	b.WriteString(detailRow("Status", stStyle.Render(statusIcon(status)+" "+status)))
@@ -176,28 +178,29 @@ func (m Model) viewStatusBar() string {
 
 	help := dimStyle.Render("j/k:nav  enter:switch  /:filter  n:new  q:quit")
 
-	// Build: left | help | right
 	if left != "" {
 		return left + "  " + help + "  " + right
 	}
 	return help + "  " + right
 }
 
-// viewSpawnDialog renders the spawn-new-agent overlay.
-func (m Model) viewSpawnDialog() string {
+// viewSpawnAgentDialog renders step 1: agent selection overlay.
+func (m Model) viewSpawnAgentDialog() string {
 	var b strings.Builder
 
 	b.WriteString(dialogTitleStyle.Render("Spawn New Agent"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("Select an agent to launch"))
 	b.WriteString("\n\n")
 
-	for i, opt := range m.spawnOptions {
+	for i, agent := range m.spawnAgents {
 		prefix := "  "
 		style := dialogNormalStyle
 		if i == m.spawnCursor {
 			prefix = "> "
 			style = dialogSelectedStyle
 		}
-		b.WriteString(style.Render(prefix + opt.label))
+		b.WriteString(style.Render(prefix + agent.Label))
 		b.WriteString("\n")
 	}
 
@@ -205,7 +208,41 @@ func (m Model) viewSpawnDialog() string {
 	b.WriteString(dimStyle.Render("enter:select  esc:cancel"))
 
 	dialog := dialogStyle.Render(b.String())
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, dialog)
+}
 
-	// Center the dialog on screen.
+// viewSpawnDirDialog renders step 2: project directory selection overlay.
+func (m Model) viewSpawnDirDialog() string {
+	var b strings.Builder
+
+	agentLabel := ""
+	if m.spawnPicked != nil {
+		agentLabel = m.spawnPicked.Label
+	}
+
+	b.WriteString(dialogTitleStyle.Render("Choose Project Directory"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("for " + agentLabel))
+	b.WriteString("\n\n")
+
+	for i, dir := range m.spawnDirs {
+		prefix := "  "
+		style := dialogNormalStyle
+		if i == m.spawnDirIdx {
+			prefix = "> "
+			style = dialogSelectedStyle
+		}
+		// Show short name + full path.
+		name := filepath.Base(dir)
+		b.WriteString(style.Render(prefix + name))
+		b.WriteString("\n")
+		b.WriteString(dimStyle.Render("    " + dir))
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("enter:spawn  esc:back  q:cancel"))
+
+	dialog := dialogStyle.Render(b.String())
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, dialog)
 }

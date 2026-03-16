@@ -21,12 +21,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.quitting = true
 		return m, tea.Quit
 
+	case spawnDoneMsg:
+		// Agent was spawned (or failed). Stay in normal mode;
+		// the state manager will detect it on next poll.
+		return m, nil
+
 	case tea.KeyMsg:
 		switch m.mode {
 		case modeFilter:
 			return m.updateFilter(msg)
-		case modeSpawn:
-			return m.updateSpawn(msg)
+		case modeSpawnAgent:
+			return m.updateSpawnAgent(msg)
+		case modeSpawnDir:
+			return m.updateSpawnDir(msg)
 		default:
 			return m.updateNormal(msg)
 		}
@@ -62,8 +69,9 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "n":
-		m.mode = modeSpawn
+		m.mode = modeSpawnAgent
 		m.spawnCursor = 0
+		m.spawnPicked = nil
 		return m, nil
 
 	case "esc":
@@ -88,7 +96,6 @@ func (m Model) updateFilter(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "enter":
 		m.mode = modeNormal
-		// Keep filter applied.
 		return m, nil
 
 	case "backspace":
@@ -99,7 +106,6 @@ func (m Model) updateFilter(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	default:
-		// Only accept printable single runes.
 		if len(msg.Runes) > 0 {
 			m.filterText += string(msg.Runes)
 			m.buildItems()
@@ -108,15 +114,15 @@ func (m Model) updateFilter(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// updateSpawn handles key presses in spawn dialog mode.
-func (m Model) updateSpawn(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+// updateSpawnAgent handles step 1: picking which agent to spawn.
+func (m Model) updateSpawnAgent(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q":
 		m.mode = modeNormal
 		return m, nil
 
 	case "j", "down":
-		if m.spawnCursor < len(m.spawnOptions)-1 {
+		if m.spawnCursor < len(m.spawnAgents)-1 {
 			m.spawnCursor++
 		}
 		return m, nil
@@ -128,10 +134,59 @@ func (m Model) updateSpawn(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "enter":
-		if m.spawnCursor >= 0 && m.spawnCursor < len(m.spawnOptions) {
-			opt := m.spawnOptions[m.spawnCursor]
+		if m.spawnCursor >= 0 && m.spawnCursor < len(m.spawnAgents) {
+			picked := m.spawnAgents[m.spawnCursor]
+			m.spawnPicked = &picked
+			m.spawnDirs = m.collectSpawnDirs()
+			m.spawnDirIdx = 0
+
+			// If only one directory, skip the directory step.
+			if len(m.spawnDirs) == 1 {
+				m.mode = modeNormal
+				return m, m.doSpawn(picked, m.spawnDirs[0])
+			}
+
+			m.mode = modeSpawnDir
+			return m, nil
+		}
+		return m, nil
+	}
+
+	return m, nil
+}
+
+// updateSpawnDir handles step 2: picking which project directory.
+func (m Model) updateSpawnDir(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		// Go back to agent selection.
+		m.mode = modeSpawnAgent
+		m.spawnPicked = nil
+		return m, nil
+
+	case "q":
+		m.mode = modeNormal
+		return m, nil
+
+	case "j", "down":
+		if m.spawnDirIdx < len(m.spawnDirs)-1 {
+			m.spawnDirIdx++
+		}
+		return m, nil
+
+	case "k", "up":
+		if m.spawnDirIdx > 0 {
+			m.spawnDirIdx--
+		}
+		return m, nil
+
+	case "enter":
+		if m.spawnPicked != nil && m.spawnDirIdx >= 0 && m.spawnDirIdx < len(m.spawnDirs) {
+			agent := *m.spawnPicked
+			dir := m.spawnDirs[m.spawnDirIdx]
 			m.mode = modeNormal
-			return m, spawnAgent(m.tmuxClient, opt.command)
+			m.spawnPicked = nil
+			return m, m.doSpawn(agent, dir)
 		}
 		return m, nil
 	}

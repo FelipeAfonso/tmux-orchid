@@ -3,9 +3,11 @@ package tui
 
 import (
 	"context"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anomalyco/tmux-orchid/spawner"
 	"github.com/anomalyco/tmux-orchid/state"
 	"github.com/anomalyco/tmux-orchid/tmux"
 )
@@ -16,7 +18,8 @@ type mode int
 const (
 	modeNormal mode = iota
 	modeFilter
-	modeSpawn
+	modeSpawnAgent // step 1: pick agent
+	modeSpawnDir   // step 2: pick project directory
 )
 
 // sidebarItem is a flattened row in the sidebar, either a project header
@@ -32,6 +35,7 @@ type Model struct {
 	// Dependencies.
 	manager    *state.Manager
 	tmuxClient *tmux.Client
+	spawner    *spawner.Spawner
 	eventCh    chan state.Event
 
 	// State.
@@ -46,30 +50,14 @@ type Model struct {
 	filterText string
 
 	// Spawn dialog.
-	spawnOptions []spawnOption
-	spawnCursor  int
-
-	// Switch-to-pane action: set when user presses Enter.
-	switchPaneID string
+	spawnAgents []spawner.AgentDef
+	spawnCursor int
+	spawnDirs   []string // project directories to choose from
+	spawnDirIdx int
+	spawnPicked *spawner.AgentDef // chosen agent (between steps)
 
 	// Quit flag.
 	quitting bool
-}
-
-// spawnOption is a chooseable agent type in the spawn dialog.
-type spawnOption struct {
-	label   string
-	command string
-}
-
-var defaultSpawnOptions = []spawnOption{
-	{label: "Claude Code", command: "claude"},
-	{label: "OpenCode", command: "opencode"},
-	{label: "Aider", command: "aider"},
-	{label: "Codex", command: "codex"},
-	{label: "Gemini CLI", command: "gemini"},
-	{label: "Goose", command: "goose"},
-	{label: "Amp", command: "amp"},
 }
 
 // New creates a new TUI model wired to the given state manager and tmux client.
@@ -77,11 +65,18 @@ func New(mgr *state.Manager, tc *tmux.Client) Model {
 	ch := make(chan state.Event, 128)
 	mgr.Subscribe(ch)
 
+	agents := spawner.Available(spawner.DefaultAgents())
+	if len(agents) == 0 {
+		// Fall back to full list if none found on PATH.
+		agents = spawner.DefaultAgents()
+	}
+
 	return Model{
-		manager:      mgr,
-		tmuxClient:   tc,
-		eventCh:      ch,
-		spawnOptions: defaultSpawnOptions,
+		manager:     mgr,
+		tmuxClient:  tc,
+		spawner:     spawner.New(tc),
+		eventCh:     ch,
+		spawnAgents: agents,
 	}
 }
 
@@ -102,9 +97,9 @@ type switchPaneMsg struct {
 	paneID string
 }
 
-// spawnAgentMsg signals a new agent should be spawned.
-type spawnAgentMsg struct {
-	command string
+// spawnDoneMsg is sent after a spawn completes (success or failure).
+type spawnDoneMsg struct {
+	err error
 }
 
 // waitForEvent returns a Cmd that listens on the event channel and
@@ -118,8 +113,6 @@ func waitForEvent(ch <-chan state.Event) tea.Cmd {
 		if evt.Kind == state.EventSnapshotUpdated && evt.Snapshot != nil {
 			return snapshotMsg{snapshot: evt.Snapshot}
 		}
-		// For granular events, we still want to keep listening.
-		// Re-read the channel by returning another wait.
 		return snapshotMsg{snapshot: evt.Snapshot}
 	}
 }
@@ -135,7 +128,6 @@ func (m *Model) buildItems() {
 	for i := range m.snapshot.Projects {
 		proj := &m.snapshot.Projects[i]
 
-		// Collect agents matching the filter.
 		var matchingAgents []*state.PaneAgent
 		for j := range proj.Agents {
 			if m.matchesFilter(&proj.Agents[j]) {
@@ -160,7 +152,6 @@ func (m *Model) buildItems() {
 		}
 	}
 
-	// Clamp cursor.
 	m.clampCursor()
 }
 
@@ -185,7 +176,6 @@ func (m *Model) clampCursor() {
 	if m.cursor < 0 {
 		m.cursor = 0
 	}
-	// If cursor lands on a project header, move to next agent.
 	if m.items[m.cursor].isProject {
 		m.moveDown()
 	}
@@ -199,7 +189,6 @@ func (m *Model) moveDown() {
 			return
 		}
 	}
-	// No agent below, stay put or find first agent.
 	for i := 0; i < len(m.items); i++ {
 		if !m.items[i].isProject {
 			m.cursor = i
@@ -216,7 +205,6 @@ func (m *Model) moveUp() {
 			return
 		}
 	}
-	// No agent above, wrap to last agent.
 	for i := len(m.items) - 1; i >= 0; i-- {
 		if !m.items[i].isProject {
 			m.cursor = i
@@ -242,17 +230,45 @@ func (m *Model) selectedAgent() *state.PaneAgent {
 func (m *Model) switchToPane(paneID string) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
-		// select-window first, then select-pane. Both target the pane ID.
 		_ = m.tmuxClient.SwitchToPane(ctx, paneID)
 		return switchPaneMsg{paneID: paneID}
 	}
 }
 
-// spawnAgent opens a new tmux window with the given command.
-func spawnAgent(tc *tmux.Client, command string) tea.Cmd {
+// spawnDirs collects unique project directories from the current snapshot,
+// plus the current working directory.
+func (m *Model) collectSpawnDirs() []string {
+	seen := make(map[string]bool)
+	var dirs []string
+
+	// Current working directory first.
+	if cwd, err := os.Getwd(); err == nil && cwd != "" {
+		dirs = append(dirs, cwd)
+		seen[cwd] = true
+	}
+
+	// Project roots from the snapshot.
+	if m.snapshot != nil {
+		for _, p := range m.snapshot.Projects {
+			if p.GitRoot != "" && !seen[p.GitRoot] {
+				dirs = append(dirs, p.GitRoot)
+				seen[p.GitRoot] = true
+			}
+		}
+	}
+
+	return dirs
+}
+
+// doSpawn creates the tmux session via the spawner package.
+func (m *Model) doSpawn(agent spawner.AgentDef, dir string) tea.Cmd {
+	sp := m.spawner
 	return func() tea.Msg {
 		ctx := context.Background()
-		_, _ = tc.NewWindow(ctx, command)
-		return nil
+		_, err := sp.Spawn(ctx, spawner.Request{
+			Agent: agent,
+			Dir:   dir,
+		})
+		return spawnDoneMsg{err: err}
 	}
 }
