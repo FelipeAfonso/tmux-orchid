@@ -75,24 +75,35 @@ func EnsureSession(ctx context.Context, c *Client, sessionName string) (EnsureRe
 	return ResultRelocated, nil
 }
 
-// InstallKeybind registers a tmux prefix keybinding that switches the
-// client back to the orchid session.
-func InstallKeybind(ctx context.Context, c *Client, key, sessionName string) error {
+// InstallKeybind registers a tmux keybinding that switches the client
+// back to the orchid session. When usePrefix is true the binding lives
+// in the prefix table (prefix+key); when false it lives in the root
+// table so the key alone triggers the switch.
+func InstallKeybind(ctx context.Context, c *Client, key, sessionName string, usePrefix bool) error {
 	if key == "" {
 		key = "d"
 	}
 	if sessionName == "" {
 		sessionName = DefaultSessionName
 	}
-	slog.Info("installing tmux keybind", "key", "prefix+"+key, "target", sessionName)
-	return c.BindKey(ctx, key, sessionName)
+	if usePrefix {
+		slog.Info("installing tmux keybind", "key", "prefix+"+key, "target", sessionName)
+		return c.BindKey(ctx, key, sessionName)
+	}
+	slog.Info("installing tmux keybind", "key", key, "target", sessionName)
+	return c.BindKeyRoot(ctx, key, sessionName)
 }
 
-// RemoveKeybind removes the previously installed keybinding.
-func RemoveKeybind(ctx context.Context, c *Client, key string) error {
+// RemoveKeybind removes the previously installed keybinding. The
+// usePrefix parameter must match the value used during installation.
+func RemoveKeybind(ctx context.Context, c *Client, key string, usePrefix bool) error {
 	if key == "" {
 		key = "d"
 	}
-	slog.Info("removing tmux keybind", "key", "prefix+"+key)
-	return c.UnbindKey(ctx, key)
+	if usePrefix {
+		slog.Info("removing tmux keybind", "key", "prefix+"+key)
+		return c.UnbindKey(ctx, key)
+	}
+	slog.Info("removing tmux keybind", "key", key)
+	return c.UnbindKeyRoot(ctx, key)
 }

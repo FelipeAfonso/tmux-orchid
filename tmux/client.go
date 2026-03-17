@@ -169,17 +169,32 @@ func (c *Client) ListSessions(ctx context.Context) ([]string, error) {
 	return strings.Split(raw, "\n"), nil
 }
 
-// BindKey registers a tmux key binding in the given key table. When
-// prefix is true, the binding lives in the prefix table (triggered after
-// the tmux prefix key).
-func (c *Client) BindKey(ctx context.Context, key, command string) error {
-	_, err := c.run(ctx, "bind-key", key, "switch-client", "-t", command)
+// BindKey registers a tmux key binding in the prefix table (triggered
+// after the tmux prefix key). The binding runs switch-client to the
+// given target.
+func (c *Client) BindKey(ctx context.Context, key, target string) error {
+	_, err := c.run(ctx, "bind-key", key, "switch-client", "-t", target)
 	return err
 }
 
-// UnbindKey removes a previously registered key binding.
+// BindKeyRoot registers a tmux key binding in the root key table. The
+// key triggers without requiring the tmux prefix.
+func (c *Client) BindKeyRoot(ctx context.Context, key, target string) error {
+	_, err := c.run(ctx, "bind-key", "-n", key, "switch-client", "-t", target)
+	return err
+}
+
+// UnbindKey removes a previously registered key binding from the prefix
+// table.
 func (c *Client) UnbindKey(ctx context.Context, key string) error {
 	_, err := c.run(ctx, "unbind-key", key)
+	return err
+}
+
+// UnbindKeyRoot removes a previously registered key binding from the
+// root key table.
+func (c *Client) UnbindKeyRoot(ctx context.Context, key string) error {
+	_, err := c.run(ctx, "unbind-key", "-n", key)
 	return err
 }
 

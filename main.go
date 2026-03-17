@@ -51,6 +51,7 @@ func run() error {
 		sessionName = tmux.DefaultSessionName
 	}
 	keybind := cfg.Session.Keybind
+	usePrefix := cfg.Session.PrefixEnabled()
 
 	// When --restart is given, kill the existing orchid session so a
 	// fresh one is created below. This makes it easy to rebuild and
@@ -81,7 +82,7 @@ func run() error {
 
 	// Install the keybind so the user can jump back (e.g. prefix+d).
 	if keybind != "" {
-		if err := tmux.InstallKeybind(ctx, tc, keybind, sessionName); err != nil {
+		if err := tmux.InstallKeybind(ctx, tc, keybind, sessionName, usePrefix); err != nil {
 			slog.Warn("failed to install keybind", "error", err)
 			// Non-fatal: the dashboard still works, just no shortcut.
 		}
@@ -95,7 +96,7 @@ func run() error {
 	go mgr.Run(mgrCtx)
 
 	// Run the TUI.
-	model := tui.New(mgr, tc)
+	model := tui.New(mgr, tc, keybind, usePrefix)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
@@ -105,7 +106,7 @@ func run() error {
 	// Clean up keybind on exit.
 	if keybind != "" {
 		cleanCtx := context.Background()
-		if err := tmux.RemoveKeybind(cleanCtx, tc, keybind); err != nil {
+		if err := tmux.RemoveKeybind(cleanCtx, tc, keybind, usePrefix); err != nil {
 			slog.Warn("failed to remove keybind", "error", err)
 		}
 	}

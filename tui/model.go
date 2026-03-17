@@ -42,6 +42,10 @@ type Model struct {
 	spawner    *spawner.Spawner
 	eventCh    chan state.Event
 
+	// Keybind display info.
+	keybind   string // the configured tmux keybind (e.g. "d")
+	usePrefix bool   // whether the keybind requires the tmux prefix
+
 	// State.
 	snapshot *state.Snapshot
 	items    []sidebarItem // flattened sidebar items
@@ -69,8 +73,10 @@ type Model struct {
 	quitting    bool
 }
 
-// New creates a new TUI model wired to the given state manager and tmux client.
-func New(mgr *state.Manager, tc *tmux.Client) Model {
+// New creates a new TUI model wired to the given state manager and tmux
+// client. The keybind and usePrefix parameters describe the configured
+// tmux keybinding so the status bar can show an accurate hint.
+func New(mgr *state.Manager, tc *tmux.Client, keybind string, usePrefix bool) Model {
 	ch := make(chan state.Event, 128)
 	unsub := mgr.Subscribe(ch)
 
@@ -87,6 +93,8 @@ func New(mgr *state.Manager, tc *tmux.Client) Model {
 		eventCh:     ch,
 		unsubscribe: unsub,
 		spawnAgents: agents,
+		keybind:     keybind,
+		usePrefix:   usePrefix,
 	}
 }
 

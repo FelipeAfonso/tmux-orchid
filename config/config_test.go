@@ -28,6 +28,9 @@ func TestDefault(t *testing.T) {
 	if cfg.Session.Keybind != "d" {
 		t.Errorf("default session keybind = %q, want %q", cfg.Session.Keybind, "d")
 	}
+	if !cfg.Session.PrefixEnabled() {
+		t.Error("default PrefixEnabled() = false, want true")
+	}
 }
 
 func TestLoadFullConfig(t *testing.T) {
@@ -39,6 +42,7 @@ session_filter = ["dev", "agents"]
 [session]
 name = "dashboard"
 keybind = "o"
+use_prefix = false
 
 [theme]
 color_scheme = "dark"
@@ -67,6 +71,9 @@ file = "/tmp/orchid.log"
 	}
 	if cfg.Session.Keybind != "o" {
 		t.Errorf("session keybind = %q, want %q", cfg.Session.Keybind, "o")
+	}
+	if cfg.Session.PrefixEnabled() {
+		t.Error("PrefixEnabled() = true, want false")
 	}
 	if cfg.Theme.ColorScheme != "dark" {
 		t.Errorf("color_scheme = %q, want %q", cfg.Theme.ColorScheme, "dark")
@@ -104,6 +111,9 @@ poll_interval = "1s"
 	}
 	if cfg.Session.Keybind != "d" {
 		t.Errorf("session keybind = %q, want default %q", cfg.Session.Keybind, "d")
+	}
+	if !cfg.Session.PrefixEnabled() {
+		t.Error("PrefixEnabled() = false, want true (default)")
 	}
 }
 
@@ -219,6 +229,96 @@ func TestLoadOrDefaultNoFile(t *testing.T) {
 		t.Errorf("poll_interval = %v, want default %v",
 			cfg.PollInterval.Duration, def.PollInterval.Duration)
 	}
+
+	// Verify that a config file was created.
+	createdPath := filepath.Join(tmp, "tmux-orchid", "config.toml")
+	if _, err := os.Stat(createdPath); err != nil {
+		t.Errorf("expected default config file at %s, got error: %v", createdPath, err)
+	}
+}
+
+func TestLoadOrDefaultCreatesValidConfig(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	t.Setenv("HOME", tmp)
+
+	// First call creates the file.
+	_, err := LoadOrDefault()
+	if err != nil {
+		t.Fatalf("LoadOrDefault() error: %v", err)
+	}
+
+	// Second call should load the created file successfully.
+	cfg, err := LoadOrDefault()
+	if err != nil {
+		t.Fatalf("LoadOrDefault() second call error: %v", err)
+	}
+	def := Default()
+	if cfg.PollInterval.Duration != def.PollInterval.Duration {
+		t.Errorf("poll_interval = %v, want %v", cfg.PollInterval.Duration, def.PollInterval.Duration)
+	}
+	if cfg.Session.Name != def.Session.Name {
+		t.Errorf("session name = %q, want %q", cfg.Session.Name, def.Session.Name)
+	}
+	if cfg.Session.Keybind != def.Session.Keybind {
+		t.Errorf("session keybind = %q, want %q", cfg.Session.Keybind, def.Session.Keybind)
+	}
+	if cfg.Session.PrefixEnabled() != def.Session.PrefixEnabled() {
+		t.Errorf("PrefixEnabled() = %v, want %v", cfg.Session.PrefixEnabled(), def.Session.PrefixEnabled())
+	}
+	if cfg.Theme.ColorScheme != def.Theme.ColorScheme {
+		t.Errorf("color_scheme = %q, want %q", cfg.Theme.ColorScheme, def.Theme.ColorScheme)
+	}
+	if cfg.Log.Level != def.Log.Level {
+		t.Errorf("log level = %q, want %q", cfg.Log.Level, def.Log.Level)
+	}
+}
+
+func TestWriteDefaultConfig(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "sub", "dir", "config.toml")
+
+	if err := writeDefaultConfig(path); err != nil {
+		t.Fatalf("writeDefaultConfig() error: %v", err)
+	}
+
+	// File should exist.
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat(%s) error: %v", path, err)
+	}
+	if info.Size() == 0 {
+		t.Error("config file is empty")
+	}
+
+	// File should be valid TOML that parses without error.
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() on created config error: %v", err)
+	}
+	if cfg.PollInterval.Duration != 2*time.Second {
+		t.Errorf("poll_interval = %v, want 2s", cfg.PollInterval.Duration)
+	}
+}
+
+func TestPreferredConfigPathXDG(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "/custom/xdg")
+	got := preferredConfigPath()
+	want := "/custom/xdg/tmux-orchid/config.toml"
+	if got != want {
+		t.Errorf("preferredConfigPath() = %q, want %q", got, want)
+	}
+}
+
+func TestPreferredConfigPathHome(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "")
+	got := preferredConfigPath()
+	if got == "" {
+		t.Error("preferredConfigPath() returned empty string")
+	}
+	if !filepath.IsAbs(got) {
+		t.Errorf("preferredConfigPath() = %q, want absolute path", got)
+	}
 }
 
 func TestLoadOrDefaultWithFile(t *testing.T) {
@@ -240,6 +340,69 @@ func TestLoadOrDefaultWithFile(t *testing.T) {
 	}
 	if cfg.PollInterval.Duration != 750*time.Millisecond {
 		t.Errorf("poll_interval = %v, want 750ms", cfg.PollInterval.Duration)
+	}
+}
+
+func TestPrefixEnabled(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  SessionConfig
+		want bool
+	}{
+		{
+			name: "nil defaults to true",
+			cfg:  SessionConfig{UsePrefix: nil},
+			want: true,
+		},
+		{
+			name: "explicit true",
+			cfg:  SessionConfig{UsePrefix: boolPtr(true)},
+			want: true,
+		},
+		{
+			name: "explicit false",
+			cfg:  SessionConfig{UsePrefix: boolPtr(false)},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.PrefixEnabled()
+			if got != tt.want {
+				t.Errorf("PrefixEnabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadUsePrefixExplicitTrue(t *testing.T) {
+	content := `
+[session]
+use_prefix = true
+`
+	path := writeTemp(t, content)
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if !cfg.Session.PrefixEnabled() {
+		t.Error("PrefixEnabled() = false, want true")
+	}
+}
+
+func TestLoadUsePrefixExplicitFalse(t *testing.T) {
+	content := `
+[session]
+use_prefix = false
+`
+	path := writeTemp(t, content)
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.Session.PrefixEnabled() {
+		t.Error("PrefixEnabled() = true, want false")
 	}
 }
 

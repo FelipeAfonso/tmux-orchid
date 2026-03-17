@@ -4,12 +4,52 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/BurntSushi/toml"
 )
+
+// defaultConfigTOML is the annotated TOML written when no config file
+// exists. All values match Default() so the application behaviour is
+// unchanged; the comments guide users who want to customise things.
+const defaultConfigTOML = `# tmux-orchid configuration
+# See https://github.com/anomalyco/tmux-orchid for documentation.
+
+# How often to poll tmux for changes (100ms to 1m).
+poll_interval = "2s"
+
+# Path to tmux binary (default: "tmux" via PATH).
+# tmux_path = "/usr/local/bin/tmux"
+
+# Only scan these tmux sessions (empty = all).
+# session_filter = ["dev", "agents"]
+
+[session]
+# Session name for the dashboard.
+name = "orchid"
+
+# Key to switch back to the dashboard (empty to disable).
+keybind = "d"
+
+# Require tmux prefix before keybind (default: true).
+# Set to false to bind in the root table so pressing the key alone
+# switches to the dashboard (no prefix needed).
+use_prefix = true
+
+[theme]
+# "dark", "light", or "auto".
+color_scheme = "auto"
+
+[log]
+# "debug", "info", "warn", "error".
+level = "info"
+
+# Log to file instead of /dev/null (useful for debugging).
+# file = "/tmp/tmux-orchid.log"
+`
 
 // Config is the top-level configuration for tmux-orchid.
 type Config struct {
@@ -41,10 +81,25 @@ type SessionConfig struct {
 	// "orchid".
 	Name string `toml:"name"`
 
-	// Keybind is the tmux prefix key that switches back to the dashboard.
+	// Keybind is the tmux key that switches back to the dashboard.
 	// Defaults to "d". Set to "" to disable automatic keybind
 	// installation.
 	Keybind string `toml:"keybind"`
+
+	// UsePrefix controls whether the keybind requires the tmux prefix
+	// key. When true (default), the binding is prefix+<keybind>. When
+	// false, the binding is in the root key table so pressing <keybind>
+	// alone switches to the dashboard.
+	UsePrefix *bool `toml:"use_prefix"`
+}
+
+// PrefixEnabled reports whether the keybind requires the tmux prefix key.
+// Defaults to true if UsePrefix is nil.
+func (s SessionConfig) PrefixEnabled() bool {
+	if s.UsePrefix == nil {
+		return true
+	}
+	return *s.UsePrefix
 }
 
 // ThemeConfig holds TUI appearance settings.
@@ -86,13 +141,17 @@ func (d Duration) MarshalText() ([]byte, error) {
 	return []byte(d.Duration.String()), nil
 }
 
+// boolPtr returns a pointer to the given bool value.
+func boolPtr(b bool) *bool { return &b }
+
 // Default returns a Config populated with sensible default values.
 func Default() Config {
 	return Config{
 		PollInterval: Duration{2 * time.Second},
 		Session: SessionConfig{
-			Name:    "orchid",
-			Keybind: "d",
+			Name:      "orchid",
+			Keybind:   "d",
+			UsePrefix: boolPtr(true),
 		},
 		Theme: ThemeConfig{
 			ColorScheme: "auto",
@@ -129,7 +188,8 @@ func Load(path string) (Config, error) {
 //  1. $XDG_CONFIG_HOME/tmux-orchid/config.toml
 //  2. $HOME/.config/tmux-orchid/config.toml
 //
-// If no file is found, Default() is returned with no error.
+// If no file is found, a default config file is created at the
+// preferred path and the default Config is returned.
 func LoadOrDefault() (Config, error) {
 	paths := configPaths()
 	for _, p := range paths {
@@ -137,7 +197,43 @@ func LoadOrDefault() (Config, error) {
 			return Load(p)
 		}
 	}
+
+	// No config file exists -- create one with defaults so users have
+	// a starting point for customisation.
+	if p := preferredConfigPath(); p != "" {
+		if err := writeDefaultConfig(p); err != nil {
+			slog.Warn("could not create default config file", "path", p, "error", err)
+		} else {
+			slog.Info("created default config file", "path", p)
+		}
+	}
+
 	return Default(), nil
+}
+
+// preferredConfigPath returns the best location for a new config file.
+// It prefers $XDG_CONFIG_HOME, falling back to $HOME/.config.
+func preferredConfigPath() string {
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		return filepath.Join(xdg, "tmux-orchid", "config.toml")
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, ".config", "tmux-orchid", "config.toml")
+	}
+	return ""
+}
+
+// writeDefaultConfig creates the config directory and writes the
+// default annotated TOML template to path.
+func writeDefaultConfig(path string) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("creating config directory %s: %w", dir, err)
+	}
+	if err := os.WriteFile(path, []byte(defaultConfigTOML), 0o644); err != nil {
+		return fmt.Errorf("writing config file %s: %w", path, err)
+	}
+	return nil
 }
 
 // validate checks that the config values are within acceptable bounds.

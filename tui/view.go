@@ -206,7 +206,16 @@ func (m Model) viewStatusBar() string {
 		"%d agents  %d projects", agentCount, projectCount,
 	))
 
-	help := dimStyle.Render("j/k:nav  enter:go to  /:filter  n:new  prefix+d:back  q:quit")
+	backHint := ""
+	if m.keybind != "" {
+		if m.usePrefix {
+			backHint = "  prefix+" + m.keybind + ":back"
+		} else {
+			backHint = "  " + m.keybind + ":back"
+		}
+	}
+
+	help := dimStyle.Render("j/k:nav  enter:go to  /:filter  n:new" + backHint + "  q:quit")
 
 	if left != "" {
 		return left + "  " + help + "  " + right

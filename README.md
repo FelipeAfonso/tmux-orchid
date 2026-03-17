@@ -89,6 +89,16 @@ poll_interval = "2s"
 # Only scan these tmux sessions (empty = all)
 # session_filter = ["dev", "agents"]
 
+[session]
+# Session name for the dashboard (default: "orchid")
+name = "orchid"
+# Key to switch back to the dashboard (default: "d", empty to disable)
+keybind = "d"
+# Require tmux prefix before keybind (default: true).
+# Set to false to bind in the root table so pressing the key alone
+# switches to the dashboard (no prefix needed).
+# use_prefix = false
+
 [theme]
 # "dark", "light", or "auto"
 color_scheme = "auto"
