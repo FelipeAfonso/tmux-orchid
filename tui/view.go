@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -28,8 +27,8 @@ func (m Model) View() string {
 	if m.mode == modeSpawnAgent {
 		return m.viewSpawnAgentDialog()
 	}
-	if m.mode == modeSpawnDir {
-		return m.viewSpawnDirDialog()
+	if m.mode == modeSpawnSession {
+		return m.viewSpawnSessionDialog()
 	}
 
 	sidebar := m.viewSidebar()
@@ -247,8 +246,8 @@ func (m Model) viewSpawnAgentDialog() string {
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, dialog)
 }
 
-// viewSpawnDirDialog renders step 2: project directory selection overlay.
-func (m Model) viewSpawnDirDialog() string {
+// viewSpawnSessionDialog renders step 2: tmux session selection overlay.
+func (m Model) viewSpawnSessionDialog() string {
 	var b strings.Builder
 
 	agentLabel := ""
@@ -256,23 +255,19 @@ func (m Model) viewSpawnDirDialog() string {
 		agentLabel = m.spawnPicked.Label
 	}
 
-	b.WriteString(dialogTitleStyle.Render("Choose Project Directory"))
+	b.WriteString(dialogTitleStyle.Render("Choose Session"))
 	b.WriteString("\n")
-	b.WriteString(dimStyle.Render("for " + agentLabel))
+	b.WriteString(dimStyle.Render("spawn " + agentLabel + " in"))
 	b.WriteString("\n\n")
 
-	for i, dir := range m.spawnDirs {
+	for i, session := range m.spawnSessions {
 		prefix := "  "
 		style := dialogNormalStyle
-		if i == m.spawnDirIdx {
+		if i == m.spawnSessionIdx {
 			prefix = "> "
 			style = dialogSelectedStyle
 		}
-		// Show short name + full path.
-		name := filepath.Base(dir)
-		b.WriteString(style.Render(prefix + name))
-		b.WriteString("\n")
-		b.WriteString(dimStyle.Render("    " + dir))
+		b.WriteString(style.Render(prefix + session))
 		b.WriteString("\n")
 	}
 

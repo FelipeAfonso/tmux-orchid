@@ -90,10 +90,22 @@ func (c *Client) SwitchToPane(ctx context.Context, paneID string) error {
 	return err
 }
 
-// NewWindow creates a new tmux window running the given shell command.
+// NewWindow creates a new tmux window in the given target session,
+// optionally setting the working directory and running a shell command.
 // It returns the pane ID of the new window's pane.
-func (c *Client) NewWindow(ctx context.Context, command string) (string, error) {
-	out, err := c.run(ctx, "new-window", "-P", "-F", "#{pane_id}", command)
+func (c *Client) NewWindow(ctx context.Context, targetSession, workDir, command string) (string, error) {
+	args := []string{
+		"new-window",
+		"-t", targetSession,
+		"-P", "-F", "#{pane_id}",
+	}
+	if workDir != "" {
+		args = append(args, "-c", workDir)
+	}
+	if command != "" {
+		args = append(args, command)
+	}
+	out, err := c.run(ctx, args...)
 	if err != nil {
 		return "", err
 	}
@@ -142,6 +154,19 @@ func (c *Client) CurrentSession(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(out), nil
+}
+
+// ListSessions returns the names of all tmux sessions.
+func (c *Client) ListSessions(ctx context.Context) ([]string, error) {
+	out, err := c.run(ctx, "list-sessions", "-F", "#{session_name}")
+	if err != nil {
+		return nil, err
+	}
+	raw := strings.TrimSpace(out)
+	if raw == "" {
+		return nil, nil
+	}
+	return strings.Split(raw, "\n"), nil
 }
 
 // BindKey registers a tmux key binding in the given key table. When

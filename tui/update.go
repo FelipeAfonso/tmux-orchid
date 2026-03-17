@@ -72,8 +72,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateFilter(msg)
 		case modeSpawnAgent:
 			return m.updateSpawnAgent(msg)
-		case modeSpawnDir:
-			return m.updateSpawnDir(msg)
+		case modeSpawnSession:
+			return m.updateSpawnSession(msg)
 		default:
 			return m.updateNormal(msg)
 		}
@@ -181,16 +181,24 @@ func (m Model) updateSpawnAgent(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.spawnCursor >= 0 && m.spawnCursor < len(m.spawnAgents) {
 			picked := m.spawnAgents[m.spawnCursor]
 			m.spawnPicked = &picked
-			m.spawnDirs = m.collectSpawnDirs()
-			m.spawnDirIdx = 0
+			m.spawnSessions = m.collectSpawnSessions()
+			m.spawnSessionIdx = 0
 
-			// If only one directory, skip the directory step.
-			if len(m.spawnDirs) == 1 {
+			if len(m.spawnSessions) == 0 {
+				// No sessions available; cancel spawn.
+				slog.Warn("no tmux sessions available for spawning")
 				m.mode = modeNormal
-				return m, m.doSpawn(picked, m.spawnDirs[0])
+				m.spawnPicked = nil
+				return m, nil
 			}
 
-			m.mode = modeSpawnDir
+			// If only one session, skip the session selection step.
+			if len(m.spawnSessions) == 1 {
+				m.mode = modeNormal
+				return m, m.doSpawn(picked, m.spawnSessions[0])
+			}
+
+			m.mode = modeSpawnSession
 			return m, nil
 		}
 		return m, nil
@@ -199,8 +207,8 @@ func (m Model) updateSpawnAgent(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// updateSpawnDir handles step 2: picking which project directory.
-func (m Model) updateSpawnDir(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+// updateSpawnSession handles step 2: picking which tmux session to spawn into.
+func (m Model) updateSpawnSession(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		// Go back to agent selection.
@@ -213,24 +221,24 @@ func (m Model) updateSpawnDir(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "j", "down":
-		if m.spawnDirIdx < len(m.spawnDirs)-1 {
-			m.spawnDirIdx++
+		if m.spawnSessionIdx < len(m.spawnSessions)-1 {
+			m.spawnSessionIdx++
 		}
 		return m, nil
 
 	case "k", "up":
-		if m.spawnDirIdx > 0 {
-			m.spawnDirIdx--
+		if m.spawnSessionIdx > 0 {
+			m.spawnSessionIdx--
 		}
 		return m, nil
 
 	case "enter":
-		if m.spawnPicked != nil && m.spawnDirIdx >= 0 && m.spawnDirIdx < len(m.spawnDirs) {
+		if m.spawnPicked != nil && m.spawnSessionIdx >= 0 && m.spawnSessionIdx < len(m.spawnSessions) {
 			agent := *m.spawnPicked
-			dir := m.spawnDirs[m.spawnDirIdx]
+			session := m.spawnSessions[m.spawnSessionIdx]
 			m.mode = modeNormal
 			m.spawnPicked = nil
-			return m, m.doSpawn(agent, dir)
+			return m, m.doSpawn(agent, session)
 		}
 		return m, nil
 	}

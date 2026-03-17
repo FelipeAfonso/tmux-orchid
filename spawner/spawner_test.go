@@ -4,68 +4,6 @@ import (
 	"testing"
 )
 
-func TestSessionName(t *testing.T) {
-	tests := []struct {
-		name    string
-		dir     string
-		command string
-		want    string
-	}{
-		{
-			name:    "simple path",
-			dir:     "/home/user/projects/my-app",
-			command: "claude",
-			want:    "my-app-claude",
-		},
-		{
-			name:    "trailing slash",
-			dir:     "/home/user/projects/my-app/",
-			command: "opencode",
-			want:    "my-app-opencode",
-		},
-		{
-			name:    "dots in dir name",
-			dir:     "/opt/code/v2.0",
-			command: "codex",
-			want:    "v2-0-codex",
-		},
-		{
-			name:    "colon in dir name",
-			dir:     "/mnt/c:/projects/app",
-			command: "aider",
-			want:    "app-aider",
-		},
-		{
-			name:    "root directory",
-			dir:     "/",
-			command: "claude",
-			want:    "project-claude",
-		},
-		{
-			name:    "empty dir",
-			dir:     "",
-			command: "claude",
-			want:    "project-claude",
-		},
-		{
-			name:    "single component",
-			dir:     "myproject",
-			command: "goose",
-			want:    "myproject-goose",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := sessionName(tt.dir, tt.command)
-			if got != tt.want {
-				t.Errorf("sessionName(%q, %q) = %q, want %q",
-					tt.dir, tt.command, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestDefaultAgents(t *testing.T) {
 	agents := DefaultAgents()
 	if len(agents) == 0 {
@@ -123,15 +61,13 @@ func TestAvailableEmpty(t *testing.T) {
 	}
 }
 
-func TestRequestValidation(t *testing.T) {
-	// We can't test Spawn() without a real tmux server, but we can
-	// verify that an empty dir is rejected by constructing a Spawner
-	// with a dummy client. The Spawn method checks dir before touching tmux.
-	//
-	// This is a basic sanity check.
-	_ = Request{
-		Agent:       AgentDef{Label: "Claude", Command: "claude"},
-		Dir:         "/home/user/project",
-		SessionName: "test-session",
+func TestRequestFields(t *testing.T) {
+	// Verify the Request struct can be constructed with TargetSession.
+	req := Request{
+		Agent:         AgentDef{Label: "Claude", Command: "claude"},
+		TargetSession: "my-session",
+	}
+	if req.TargetSession != "my-session" {
+		t.Errorf("TargetSession = %q, want %q", req.TargetSession, "my-session")
 	}
 }

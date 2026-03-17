@@ -3,7 +3,7 @@ package tui
 
 import (
 	"context"
-	"os"
+	"log/slog"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -22,8 +22,8 @@ type mode int
 const (
 	modeNormal mode = iota
 	modeFilter
-	modeSpawnAgent // step 1: pick agent
-	modeSpawnDir   // step 2: pick project directory
+	modeSpawnAgent   // step 1: pick agent
+	modeSpawnSession // step 2: pick target session
 )
 
 // sidebarItem is a flattened row in the sidebar, either a project header
@@ -58,11 +58,11 @@ type Model struct {
 	panePaneID  string // pane ID currently being captured
 
 	// Spawn dialog.
-	spawnAgents []spawner.AgentDef
-	spawnCursor int
-	spawnDirs   []string // project directories to choose from
-	spawnDirIdx int
-	spawnPicked *spawner.AgentDef // chosen agent (between steps)
+	spawnAgents     []spawner.AgentDef
+	spawnCursor     int
+	spawnSessions   []string // tmux sessions to choose from
+	spawnSessionIdx int
+	spawnPicked     *spawner.AgentDef // chosen agent (between steps)
 
 	// Quit flag.
 	quitting bool
@@ -290,39 +290,41 @@ func (m *Model) switchToPane(paneID string) tea.Cmd {
 	}
 }
 
-// spawnDirs collects unique project directories from the current snapshot,
-// plus the current working directory.
-func (m *Model) collectSpawnDirs() []string {
-	seen := make(map[string]bool)
-	var dirs []string
+// collectSpawnSessions returns the names of all tmux sessions, excluding
+// the session that the dashboard itself is running in.
+func (m *Model) collectSpawnSessions() []string {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 
-	// Current working directory first.
-	if cwd, err := os.Getwd(); err == nil && cwd != "" {
-		dirs = append(dirs, cwd)
-		seen[cwd] = true
+	sessions, err := m.tmuxClient.ListSessions(ctx)
+	if err != nil {
+		slog.Warn("failed to list tmux sessions", "error", err)
+		return nil
 	}
 
-	// Project roots from the snapshot.
-	if m.snapshot != nil {
-		for _, p := range m.snapshot.Projects {
-			if p.GitRoot != "" && !seen[p.GitRoot] {
-				dirs = append(dirs, p.GitRoot)
-				seen[p.GitRoot] = true
-			}
+	// Exclude the dashboard's own session.
+	own, err := m.tmuxClient.CurrentSession(ctx)
+	if err != nil {
+		slog.Warn("failed to get current session", "error", err)
+	}
+
+	var out []string
+	for _, s := range sessions {
+		if s != own {
+			out = append(out, s)
 		}
 	}
-
-	return dirs
+	return out
 }
 
-// doSpawn creates the tmux session via the spawner package.
-func (m *Model) doSpawn(agent spawner.AgentDef, dir string) tea.Cmd {
+// doSpawn creates a new tmux window in the target session via the spawner.
+func (m *Model) doSpawn(agent spawner.AgentDef, session string) tea.Cmd {
 	sp := m.spawner
 	return func() tea.Msg {
 		ctx := context.Background()
 		_, err := sp.Spawn(ctx, spawner.Request{
-			Agent: agent,
-			Dir:   dir,
+			Agent:         agent,
+			TargetSession: session,
 		})
 		return spawnDoneMsg{err: err}
 	}
