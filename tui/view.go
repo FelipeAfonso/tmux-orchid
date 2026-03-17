@@ -176,7 +176,7 @@ func (m Model) viewStatusBar() string {
 		"%d agents  %d projects", agentCount, projectCount,
 	))
 
-	help := dimStyle.Render("j/k:nav  enter:switch  /:filter  n:new  q:quit")
+	help := dimStyle.Render("j/k:nav  enter:go to  /:filter  n:new  prefix+d:back  q:quit")
 
 	if left != "" {
 		return left + "  " + help + "  " + right

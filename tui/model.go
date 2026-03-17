@@ -92,9 +92,11 @@ type snapshotMsg struct {
 	snapshot *state.Snapshot
 }
 
-// switchPaneMsg signals the program should quit and switch tmux pane.
-type switchPaneMsg struct {
+// switchDoneMsg is sent after the tmux client has been switched to an
+// agent's pane. The dashboard remains running.
+type switchDoneMsg struct {
 	paneID string
+	err    error
 }
 
 // spawnDoneMsg is sent after a spawn completes (success or failure).
@@ -225,13 +227,14 @@ func (m *Model) selectedAgent() *state.PaneAgent {
 	return item.agent
 }
 
-// switchToPane issues a tmux select-window + select-pane so the user
-// lands on the agent's pane after the TUI quits.
+// switchToPane switches the tmux client to the given pane without
+// quitting the dashboard. The user is moved to the agent's session/pane
+// and can return to the dashboard via the keybind.
 func (m *Model) switchToPane(paneID string) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
-		_ = m.tmuxClient.SwitchToPane(ctx, paneID)
-		return switchPaneMsg{paneID: paneID}
+		err := m.tmuxClient.SwitchToPane(ctx, paneID)
+		return switchDoneMsg{paneID: paneID, err: err}
 	}
 }
 

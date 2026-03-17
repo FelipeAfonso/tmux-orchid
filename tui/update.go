@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"log/slog"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -17,13 +19,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.buildItems()
 		return m, waitForEvent(m.eventCh)
 
-	case switchPaneMsg:
-		m.quitting = true
-		return m, tea.Quit
+	case switchDoneMsg:
+		// The tmux client was switched to the agent's pane.
+		// The dashboard stays running; the user returns via keybind.
+		if msg.err != nil {
+			slog.Warn("switch to pane failed", "pane", msg.paneID, "error", msg.err)
+		}
+		return m, nil
 
 	case spawnDoneMsg:
 		// Agent was spawned (or failed). Stay in normal mode;
 		// the state manager will detect it on next poll.
+		if msg.err != nil {
+			slog.Warn("spawn failed", "error", msg.err)
+		}
 		return m, nil
 
 	case tea.KeyMsg:

@@ -24,11 +24,27 @@ type Config struct {
 	// match any entry in this list.
 	SessionFilter []string `toml:"session_filter"`
 
+	// Session holds settings for the persistent dashboard session.
+	Session SessionConfig `toml:"session"`
+
 	// Theme holds TUI colour and style overrides.
 	Theme ThemeConfig `toml:"theme"`
 
 	// Log configures logging behaviour.
 	Log LogConfig `toml:"log"`
+}
+
+// SessionConfig controls the persistent tmux session that hosts the
+// dashboard.
+type SessionConfig struct {
+	// Name is the tmux session name for the dashboard. Defaults to
+	// "orchid".
+	Name string `toml:"name"`
+
+	// Keybind is the tmux prefix key that switches back to the dashboard.
+	// Defaults to "d". Set to "" to disable automatic keybind
+	// installation.
+	Keybind string `toml:"keybind"`
 }
 
 // ThemeConfig holds TUI appearance settings.
@@ -74,6 +90,10 @@ func (d Duration) MarshalText() ([]byte, error) {
 func Default() Config {
 	return Config{
 		PollInterval: Duration{2 * time.Second},
+		Session: SessionConfig{
+			Name:    "orchid",
+			Keybind: "d",
+		},
 		Theme: ThemeConfig{
 			ColorScheme: "auto",
 		},

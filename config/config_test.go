@@ -22,6 +22,12 @@ func TestDefault(t *testing.T) {
 	if cfg.TmuxPath != "" {
 		t.Errorf("default tmux_path = %q, want empty", cfg.TmuxPath)
 	}
+	if cfg.Session.Name != "orchid" {
+		t.Errorf("default session name = %q, want %q", cfg.Session.Name, "orchid")
+	}
+	if cfg.Session.Keybind != "d" {
+		t.Errorf("default session keybind = %q, want %q", cfg.Session.Keybind, "d")
+	}
 }
 
 func TestLoadFullConfig(t *testing.T) {
@@ -29,6 +35,10 @@ func TestLoadFullConfig(t *testing.T) {
 poll_interval = "500ms"
 tmux_path = "/usr/local/bin/tmux"
 session_filter = ["dev", "agents"]
+
+[session]
+name = "dashboard"
+keybind = "o"
 
 [theme]
 color_scheme = "dark"
@@ -51,6 +61,12 @@ file = "/tmp/orchid.log"
 	}
 	if len(cfg.SessionFilter) != 2 || cfg.SessionFilter[0] != "dev" || cfg.SessionFilter[1] != "agents" {
 		t.Errorf("session_filter = %v, want [dev agents]", cfg.SessionFilter)
+	}
+	if cfg.Session.Name != "dashboard" {
+		t.Errorf("session name = %q, want %q", cfg.Session.Name, "dashboard")
+	}
+	if cfg.Session.Keybind != "o" {
+		t.Errorf("session keybind = %q, want %q", cfg.Session.Keybind, "o")
 	}
 	if cfg.Theme.ColorScheme != "dark" {
 		t.Errorf("color_scheme = %q, want %q", cfg.Theme.ColorScheme, "dark")
@@ -82,6 +98,12 @@ poll_interval = "1s"
 	}
 	if cfg.Log.Level != "info" {
 		t.Errorf("log level = %q, want default %q", cfg.Log.Level, "info")
+	}
+	if cfg.Session.Name != "orchid" {
+		t.Errorf("session name = %q, want default %q", cfg.Session.Name, "orchid")
+	}
+	if cfg.Session.Keybind != "d" {
+		t.Errorf("session keybind = %q, want default %q", cfg.Session.Keybind, "d")
 	}
 }
 

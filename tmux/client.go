@@ -68,8 +68,12 @@ func (c *Client) CapturePane(ctx context.Context, paneID string) (string, error)
 
 // SwitchToPane switches the client to the window and pane identified by
 // paneID (e.g. "%0"). This makes the target pane the active pane.
+// If the pane lives in a different session, switch-client moves the
+// current client to that session first.
 func (c *Client) SwitchToPane(ctx context.Context, paneID string) error {
-	// First select the window, then the pane.
+	// switch-client handles the cross-session case; it is a no-op when
+	// the pane already belongs to the current session.
+	_, _ = c.run(ctx, "switch-client", "-t", paneID)
 	_, _ = c.run(ctx, "select-window", "-t", paneID)
 	_, err := c.run(ctx, "select-pane", "-t", paneID)
 	return err
@@ -83,4 +87,73 @@ func (c *Client) NewWindow(ctx context.Context, command string) (string, error) 
 		return "", err
 	}
 	return strings.TrimSpace(out), nil
+}
+
+// HasSession reports whether a session with the given name exists.
+func (c *Client) HasSession(ctx context.Context, name string) bool {
+	_, err := c.run(ctx, "has-session", "-t", name)
+	return err == nil
+}
+
+// NewSession creates a new detached session with the given name, running
+// command in workDir. It returns the pane ID of the initial pane.
+func (c *Client) NewSession(ctx context.Context, name, workDir, command string) (string, error) {
+	args := []string{
+		"new-session",
+		"-d",
+		"-s", name,
+		"-P", "-F", "#{pane_id}",
+	}
+	if workDir != "" {
+		args = append(args, "-c", workDir)
+	}
+	if command != "" {
+		args = append(args, command)
+	}
+	out, err := c.run(ctx, args...)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
+// SwitchClient switches the current tmux client to the given target
+// (session, window, or pane identifier).
+func (c *Client) SwitchClient(ctx context.Context, target string) error {
+	_, err := c.run(ctx, "switch-client", "-t", target)
+	return err
+}
+
+// CurrentSession returns the session name of the current tmux client.
+func (c *Client) CurrentSession(ctx context.Context) (string, error) {
+	out, err := c.run(ctx, "display-message", "-p", "#{session_name}")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
+// BindKey registers a tmux key binding in the given key table. When
+// prefix is true, the binding lives in the prefix table (triggered after
+// the tmux prefix key).
+func (c *Client) BindKey(ctx context.Context, key, command string) error {
+	_, err := c.run(ctx, "bind-key", key, "switch-client", "-t", command)
+	return err
+}
+
+// UnbindKey removes a previously registered key binding.
+func (c *Client) UnbindKey(ctx context.Context, key string) error {
+	_, err := c.run(ctx, "unbind-key", key)
+	return err
+}
+
+// KillSession destroys the tmux session with the given name.
+func (c *Client) KillSession(ctx context.Context, name string) error {
+	_, err := c.run(ctx, "kill-session", "-t", name)
+	return err
+}
+
+// Executable returns the path to the tmux binary this client uses.
+func (c *Client) Executable() string {
+	return c.TmuxPath
 }
