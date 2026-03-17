@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anomalyco/tmux-orchid/state"
 )
@@ -56,7 +57,13 @@ func (m Model) View() string {
 		Height(contentHeight - 2). // account for border
 		Render(sidebar)
 
-	detailRendered := detailStyle.
+	// Use minimal-padding pane style when showing live terminal content,
+	// fall back to the padded detail style when no agent is selected.
+	dStyle := paneViewStyle
+	if m.selectedAgent() == nil {
+		dStyle = detailStyle
+	}
+	detailRendered := dStyle.
 		Width(detailWidth).
 		Height(contentHeight - 2).
 		Render(detail)
@@ -121,34 +128,62 @@ func (m Model) renderAgentLine(pa *state.PaneAgent, selected bool) string {
 }
 
 // viewDetail renders the detail panel for the selected agent.
+// It shows a compact header (agent type + status) followed by
+// the live captured pane content with ANSI colours preserved.
 func (m Model) viewDetail() string {
 	pa := m.selectedAgent()
 	if pa == nil {
 		return dimStyle.Render("select an agent to view details")
 	}
 
-	var b strings.Builder
-
-	agentTitle := titleStyle.Render(string(pa.Agent.Type))
-	b.WriteString(agentTitle)
-	b.WriteString("\n\n")
-
+	// Compact header: "claude-code  * thinking  [session]"
 	status := string(pa.Agent.Status)
 	stStyle := statusStyle(status)
-	b.WriteString(detailRow("Status", stStyle.Render(statusIcon(status)+" "+status)))
-	b.WriteString(detailRow("PID", fmt.Sprintf("%d", pa.Agent.PID)))
-	b.WriteString(detailRow("CWD", pa.Agent.CWD))
-	b.WriteString(detailRow("Session", pa.Pane.SessionName))
-	b.WriteString(detailRow("Window", fmt.Sprintf("%d:%s", pa.Pane.WindowIndex, pa.Pane.WindowName)))
-	b.WriteString(detailRow("Pane", fmt.Sprintf("%s (idx %d)", pa.Pane.PaneID, pa.Pane.PaneIndex)))
-	b.WriteString(detailRow("Size", fmt.Sprintf("%dx%d", pa.Pane.PaneWidth, pa.Pane.PaneHeight)))
-	b.WriteString(detailRow("Command", pa.Pane.CurrentCommand))
+	header := paneHeaderStyle.Render(string(pa.Agent.Type)) +
+		"  " + stStyle.Render(statusIcon(status)+" "+status) +
+		"  " + dimStyle.Render("["+pa.Pane.SessionName+"]")
 
-	if pa.Pane.PaneActive {
-		b.WriteString(detailRow("Active", "yes"))
+	if m.paneContent == "" {
+		return header + "\n\n" + dimStyle.Render("capturing pane...")
 	}
 
-	return b.String()
+	return header + "\n" + m.formatPaneContent()
+}
+
+// formatPaneContent clips the captured ANSI pane content to fit the
+// detail panel dimensions.
+func (m Model) formatPaneContent() string {
+	// Available width: total minus sidebar, borders, and minimal padding.
+	sw := sidebarWidth
+	if sw > m.width/2 {
+		sw = m.width / 2
+	}
+	// 2 for sidebar border, 2 for detail border.
+	availWidth := m.width - sw - 4
+	if availWidth < 10 {
+		availWidth = 10
+	}
+
+	// Available height: total minus status bar (1), detail border (2),
+	// and header line (2: header + blank line).
+	availHeight := m.height - 1 - 2 - 2
+	if availHeight < 1 {
+		availHeight = 1
+	}
+
+	lines := strings.Split(m.paneContent, "\n")
+
+	// Cap the number of lines to the available height.
+	if len(lines) > availHeight {
+		lines = lines[:availHeight]
+	}
+
+	// Truncate each line to the available width, preserving ANSI escapes.
+	for i, line := range lines {
+		lines[i] = ansi.Truncate(line, availWidth, "")
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 // detailRow renders a label: value pair for the detail panel.

@@ -66,6 +66,17 @@ func (c *Client) CapturePane(ctx context.Context, paneID string) (string, error)
 	return out, nil
 }
 
+// CapturePaneANSI captures the visible content of the pane identified by
+// paneID (e.g. "%0"), including ANSI escape sequences for colors and
+// text attributes. This is intended for display purposes, not parsing.
+func (c *Client) CapturePaneANSI(ctx context.Context, paneID string) (string, error) {
+	out, err := c.run(ctx, "capture-pane", "-t", paneID, "-p", "-e")
+	if err != nil {
+		return "", err
+	}
+	return out, nil
+}
+
 // SwitchToPane switches the client to the window and pane identified by
 // paneID (e.g. "%0"). This makes the target pane the active pane.
 // If the pane lives in a different session, switch-client moves the

@@ -4,6 +4,7 @@ package tui
 import (
 	"context"
 	"os"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -11,6 +12,9 @@ import (
 	"github.com/anomalyco/tmux-orchid/state"
 	"github.com/anomalyco/tmux-orchid/tmux"
 )
+
+// paneCaptureInterval is how often we re-capture the selected agent's pane.
+const paneCaptureInterval = 300 * time.Millisecond
 
 // mode tracks which UI mode we are in.
 type mode int
@@ -49,6 +53,10 @@ type Model struct {
 	// Filter.
 	filterText string
 
+	// Pane capture (live terminal preview).
+	paneContent string // ANSI-escaped content of the selected pane
+	panePaneID  string // pane ID currently being captured
+
 	// Spawn dialog.
 	spawnAgents []spawner.AgentDef
 	spawnCursor int
@@ -84,7 +92,27 @@ func New(mgr *state.Manager, tc *tmux.Client) Model {
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		waitForEvent(m.eventCh),
+		paneCaptureTickCmd(),
 	)
+}
+
+// paneCaptureTickCmd returns a tick command that fires paneCaptureTickMsg
+// at the configured interval.
+func paneCaptureTickCmd() tea.Cmd {
+	return tea.Tick(paneCaptureInterval, func(_ time.Time) tea.Msg {
+		return paneCaptureTickMsg{}
+	})
+}
+
+// capturePaneCmd runs tmux capture-pane with ANSI escapes for the given pane.
+func (m *Model) capturePaneCmd(paneID string) tea.Cmd {
+	tc := m.tmuxClient
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		content, err := tc.CapturePaneANSI(ctx, paneID)
+		return paneCaptureMsg{paneID: paneID, content: content, err: err}
+	}
 }
 
 // snapshotMsg delivers a new snapshot from the state manager.
@@ -102,6 +130,16 @@ type switchDoneMsg struct {
 // spawnDoneMsg is sent after a spawn completes (success or failure).
 type spawnDoneMsg struct {
 	err error
+}
+
+// paneCaptureTickMsg triggers a pane content capture for the selected agent.
+type paneCaptureTickMsg struct{}
+
+// paneCaptureMsg delivers captured pane content (with ANSI escapes).
+type paneCaptureMsg struct {
+	paneID  string
+	content string
+	err     error
 }
 
 // waitForEvent returns a Cmd that listens on the event channel and
@@ -212,6 +250,20 @@ func (m *Model) moveUp() {
 			m.cursor = i
 			return
 		}
+	}
+}
+
+// clearPaneIfChanged resets cached pane content when the selected agent
+// has changed. prevPaneID is the pane ID before the cursor moved.
+func (m *Model) clearPaneIfChanged(prevPaneID string) {
+	pa := m.selectedAgent()
+	newID := ""
+	if pa != nil {
+		newID = pa.Pane.PaneID
+	}
+	if newID != prevPaneID {
+		m.paneContent = ""
+		m.panePaneID = newID
 	}
 }
 

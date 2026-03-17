@@ -86,6 +86,18 @@ var (
 
 	dialogNormalStyle = lipgloss.NewStyle().
 				Foreground(colorText)
+
+	// paneViewStyle wraps the captured terminal content with minimal
+	// padding to maximise the visible area.
+	paneViewStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(colorMuted)
+
+	// paneHeaderStyle renders the compact agent header above the pane.
+	paneHeaderStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorPrimary).
+			PaddingLeft(1)
 )
 
 // statusStyle returns the lipgloss style for a given agent status string.

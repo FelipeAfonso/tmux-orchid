@@ -35,6 +35,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case paneCaptureTickMsg:
+		// Schedule the next tick unconditionally.
+		nextTick := paneCaptureTickCmd()
+		pa := m.selectedAgent()
+		if pa == nil {
+			return m, nextTick
+		}
+		paneID := pa.Pane.PaneID
+		if paneID == "" {
+			return m, nextTick
+		}
+		// Track which pane we are capturing; clear stale content
+		// if the user moved to a different agent.
+		if paneID != m.panePaneID {
+			m.paneContent = ""
+			m.panePaneID = paneID
+		}
+		return m, tea.Batch(nextTick, m.capturePaneCmd(paneID))
+
+	case paneCaptureMsg:
+		// Only apply if the result still matches the selected pane.
+		if msg.paneID != m.panePaneID {
+			return m, nil
+		}
+		if msg.err != nil {
+			slog.Debug("pane capture failed", "pane", msg.paneID, "error", msg.err)
+			return m, nil
+		}
+		m.paneContent = msg.content
+		return m, nil
+
 	case tea.KeyMsg:
 		switch m.mode {
 		case modeFilter:
@@ -59,11 +90,15 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case "j", "down":
+		prev := m.panePaneID
 		m.moveDown()
+		m.clearPaneIfChanged(prev)
 		return m, nil
 
 	case "k", "up":
+		prev := m.panePaneID
 		m.moveUp()
+		m.clearPaneIfChanged(prev)
 		return m, nil
 
 	case "enter":
