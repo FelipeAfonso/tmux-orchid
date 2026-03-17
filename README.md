@@ -6,7 +6,7 @@ Monitor, navigate, and spawn AI agents (Claude Code, OpenCode, Codex, Aider,
 Gemini, Goose, Amp, and more) running across your tmux sessions -- all from a
 single dashboard.
 
-<!-- ![demo](./docs/demo.gif) -->
+![screenshot](./docs/screenshot.png)
 
 ## Features
 
