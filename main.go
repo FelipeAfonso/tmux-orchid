@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -23,6 +24,10 @@ func main() {
 }
 
 func run() error {
+	restart := flag.Bool("restart", false, "kill the existing orchid session and start fresh")
+	flag.BoolVar(restart, "r", false, "shorthand for --restart")
+	flag.Parse()
+
 	cfg, err := config.LoadOrDefault()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
@@ -43,11 +48,21 @@ func run() error {
 	}
 	keybind := cfg.Session.Keybind
 
+	// When --restart is given, kill the existing orchid session so a
+	// fresh one is created below. This makes it easy to rebuild and
+	// relaunch during development.
+	ctx := context.Background()
+	if *restart && tc.HasSession(ctx, sessionName) {
+		slog.Info("restart requested, killing existing session", "session", sessionName)
+		if err := tc.KillSession(ctx, sessionName); err != nil {
+			slog.Warn("failed to kill session for restart", "session", sessionName, "error", err)
+		}
+	}
+
 	// Ensure the orchid session exists and we are inside it.
 	// If we are in a different session, this creates/finds the orchid
 	// session, switches the client to it, and returns ResultRelocated
 	// so we can exit this invocation cleanly.
-	ctx := context.Background()
 	result, err := tmux.EnsureSession(ctx, tc, sessionName)
 	if err != nil {
 		return fmt.Errorf("ensuring orchid session: %w", err)

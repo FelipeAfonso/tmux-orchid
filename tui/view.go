@@ -165,13 +165,14 @@ func (m Model) formatPaneContent() string {
 	}
 
 	// Available height: total minus status bar (1), detail border (2),
-	// and header line (2: header + blank line).
-	availHeight := m.height - 1 - 2 - 2
+	// and header line (1).
+	availHeight := m.height - 1 - 2 - 1
 	if availHeight < 1 {
 		availHeight = 1
 	}
 
-	lines := strings.Split(m.paneContent, "\n")
+	content := strings.TrimRight(m.paneContent, "\n")
+	lines := strings.Split(content, "\n")
 
 	// Cap the number of lines to the available height.
 	if len(lines) > availHeight {
