@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 
@@ -33,7 +34,10 @@ func run() error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	setupLogging(cfg.Log)
+	logCloser := setupLogging(cfg.Log)
+	if logCloser != nil {
+		defer logCloser.Close()
+	}
 
 	tc := tmux.NewClient(cfg.TmuxPath)
 
@@ -84,11 +88,11 @@ func run() error {
 	}
 
 	// Start the state manager in the background.
-	ctx, cancel := context.WithCancel(context.Background())
+	mgrCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	mgr := state.NewManager(tc, cfg.PollInterval.Duration, cfg.SessionFilter)
-	go mgr.Run(ctx)
+	go mgr.Run(mgrCtx)
 
 	// Run the TUI.
 	model := tui.New(mgr, tc)
@@ -109,7 +113,10 @@ func run() error {
 	return nil
 }
 
-func setupLogging(logCfg config.LogConfig) {
+// setupLogging configures the default slog logger. It returns an
+// io.Closer for the log file (if one was opened) that the caller
+// should defer-close, or nil when no file needs closing.
+func setupLogging(logCfg config.LogConfig) io.Closer {
 	level := slog.LevelInfo
 	switch logCfg.Level {
 	case "debug":
@@ -121,6 +128,7 @@ func setupLogging(logCfg config.LogConfig) {
 	}
 
 	var handler slog.Handler
+	var closer io.Closer
 	if logCfg.File != "" {
 		f, err := os.OpenFile(logCfg.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 		if err != nil {
@@ -128,15 +136,19 @@ func setupLogging(logCfg config.LogConfig) {
 			handler = slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})
 		} else {
 			handler = slog.NewTextHandler(f, &slog.HandlerOptions{Level: level})
+			closer = f
 		}
 	} else {
 		// When running TUI, send logs to /dev/null by default (stderr is the TUI).
 		devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
 		if err != nil {
 			devNull = os.Stderr
+		} else {
+			closer = devNull
 		}
 		handler = slog.NewTextHandler(devNull, &slog.HandlerOptions{Level: level})
 	}
 
 	slog.SetDefault(slog.New(handler))
+	return closer
 }

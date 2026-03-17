@@ -64,14 +64,15 @@ type Model struct {
 	spawnSessionIdx int
 	spawnPicked     *spawner.AgentDef // chosen agent (between steps)
 
-	// Quit flag.
-	quitting bool
+	// Cleanup.
+	unsubscribe func() // removes the event subscription
+	quitting    bool
 }
 
 // New creates a new TUI model wired to the given state manager and tmux client.
 func New(mgr *state.Manager, tc *tmux.Client) Model {
 	ch := make(chan state.Event, 128)
-	mgr.Subscribe(ch)
+	unsub := mgr.Subscribe(ch)
 
 	agents := spawner.Available(spawner.DefaultAgents())
 	if len(agents) == 0 {
@@ -84,6 +85,7 @@ func New(mgr *state.Manager, tc *tmux.Client) Model {
 		tmuxClient:  tc,
 		spawner:     spawner.New(tc),
 		eventCh:     ch,
+		unsubscribe: unsub,
 		spawnAgents: agents,
 	}
 }
@@ -149,9 +151,6 @@ func waitForEvent(ch <-chan state.Event) tea.Cmd {
 		evt, ok := <-ch
 		if !ok {
 			return nil
-		}
-		if evt.Kind == state.EventSnapshotUpdated && evt.Snapshot != nil {
-			return snapshotMsg{snapshot: evt.Snapshot}
 		}
 		return snapshotMsg{snapshot: evt.Snapshot}
 	}

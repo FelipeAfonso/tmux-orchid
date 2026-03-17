@@ -9,21 +9,14 @@ var (
 	colorSecondary = lipgloss.Color("#81A1C1") // steel blue
 	colorMuted     = lipgloss.Color("#4C566A") // grey
 	colorText      = lipgloss.Color("#ECEFF4") // near-white
-	colorBg        = lipgloss.Color("#2E3440") // dark bg
 	colorGreen     = lipgloss.Color("#A3BE8C")
 	colorYellow    = lipgloss.Color("#EBCB8B")
 	colorRed       = lipgloss.Color("#BF616A")
-	colorOrange    = lipgloss.Color("#D08770")
 	colorCyan      = lipgloss.Color("#88C0D0")
 )
 
 // Layout styles.
 var (
-	sidebarStyle = lipgloss.NewStyle().
-			Padding(1, 1).
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(colorMuted)
-
 	sidebarActiveStyle = lipgloss.NewStyle().
 				Padding(1, 1).
 				BorderStyle(lipgloss.RoundedBorder()).
@@ -52,19 +45,6 @@ var (
 
 	dimStyle = lipgloss.NewStyle().
 			Foreground(colorMuted)
-
-	detailLabelStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(colorSecondary).
-				Width(12)
-
-	detailValueStyle = lipgloss.NewStyle().
-				Foreground(colorText)
-
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(colorPrimary).
-			Padding(0, 1)
 
 	filterPromptStyle = lipgloss.NewStyle().
 				Foreground(colorYellow)

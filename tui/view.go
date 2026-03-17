@@ -186,11 +186,6 @@ func (m Model) formatPaneContent() string {
 	return strings.Join(lines, "\n")
 }
 
-// detailRow renders a label: value pair for the detail panel.
-func detailRow(label, value string) string {
-	return detailLabelStyle.Render(label+":") + " " + detailValueStyle.Render(value) + "\n"
-}
-
 // viewStatusBar renders the bottom status bar.
 func (m Model) viewStatusBar() string {
 	left := ""

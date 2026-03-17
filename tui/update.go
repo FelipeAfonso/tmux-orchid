@@ -38,6 +38,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case paneCaptureTickMsg:
 		// Schedule the next tick unconditionally.
 		nextTick := paneCaptureTickCmd()
+		// Skip capture when a dialog is open or no agent is selected.
+		if m.mode != modeNormal {
+			return m, nextTick
+		}
 		pa := m.selectedAgent()
 		if pa == nil {
 			return m, nextTick
@@ -87,6 +91,9 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c":
 		m.quitting = true
+		if m.unsubscribe != nil {
+			m.unsubscribe()
+		}
 		return m, tea.Quit
 
 	case "j", "down":

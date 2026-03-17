@@ -5,25 +5,31 @@ import (
 	"strings"
 )
 
-// agentPatterns maps a process-name substring (or binary base-name) to its
-// AgentType. Patterns are checked in order; first match wins.
-var agentPatterns = []struct {
+// agentPattern maps a process-name pattern to its AgentType. When exact is
+// true the pattern must equal the entire string being matched (used for
+// short, ambiguous names like "amp" that would otherwise false-positive on
+// words like "trampoline").
+type agentPattern struct {
 	substring string
 	agent     AgentType
-}{
-	{"claude-code", AgentClaudeCode},
-	{"claude-md", AgentClaudeMD},
-	{"claude", AgentClaudeCode},
-	{"cursor", AgentCursor},
-	{"windsurf", AgentWindsurf},
-	{"aider", AgentAider},
-	{"copilot", AgentCopilot},
-	{"codex", AgentCodex},
-	{"gemini", AgentGeminiCLI},
-	{"opencode", AgentOpenCode},
-	{"goose", AgentGoose},
-	{"amp", AgentAmplitude},
-	{"kilo", AgentKilo},
+	exact     bool
+}
+
+// agentPatterns are checked in order; first match wins.
+var agentPatterns = []agentPattern{
+	{"claude-code", AgentClaudeCode, false},
+	{"claude-md", AgentClaudeMD, false},
+	{"claude", AgentClaudeCode, false},
+	{"cursor", AgentCursor, false},
+	{"windsurf", AgentWindsurf, false},
+	{"aider", AgentAider, false},
+	{"copilot", AgentCopilot, false},
+	{"codex", AgentCodex, false},
+	{"gemini", AgentGeminiCLI, false},
+	{"opencode", AgentOpenCode, false},
+	{"goose", AgentGoose, false},
+	{"amp", AgentAmplitude, true},
+	{"kilo", AgentKilo, false},
 }
 
 // ClassifyProcess determines the AgentType by examining the process name
@@ -31,16 +37,17 @@ var agentPatterns = []struct {
 func ClassifyProcess(processName string, cmdline string) AgentType {
 	lower := strings.ToLower(processName)
 
-	// First try the process base name.
+	// First try the process base name (exact match for short patterns).
 	base := filepath.Base(lower)
-	if agent := matchPatterns(base); agent != AgentUnknown {
+	if agent := matchPatterns(base, true); agent != AgentUnknown {
 		return agent
 	}
 
-	// Fall back to the full command line.
+	// Fall back to the full command line (substring match only for
+	// non-exact patterns).
 	if cmdline != "" {
 		lowerCmd := strings.ToLower(cmdline)
-		if agent := matchPatterns(lowerCmd); agent != AgentUnknown {
+		if agent := matchPatterns(lowerCmd, false); agent != AgentUnknown {
 			return agent
 		}
 	}
@@ -48,10 +55,19 @@ func ClassifyProcess(processName string, cmdline string) AgentType {
 	return AgentUnknown
 }
 
-// matchPatterns checks a string against the known agent patterns.
-func matchPatterns(s string) AgentType {
+// matchPatterns checks a string against the known agent patterns. When
+// matchBase is true the string is treated as a binary base name: exact
+// patterns require an equality match, while substring patterns use
+// strings.Contains. When matchBase is false (e.g. for full command
+// lines), exact patterns are skipped entirely to avoid false positives.
+func matchPatterns(s string, matchBase bool) AgentType {
 	for _, p := range agentPatterns {
-		if strings.Contains(s, p.substring) {
+		if p.exact {
+			// Exact patterns only match against the base name.
+			if matchBase && s == p.substring {
+				return p.agent
+			}
+		} else if strings.Contains(s, p.substring) {
 			return p.agent
 		}
 	}
