@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/anomalyco/tmux-orchid/detector"
-	"github.com/anomalyco/tmux-orchid/tmux"
+	"github.com/FelipeAfonso/tmux-orchid/detector"
+	"github.com/FelipeAfonso/tmux-orchid/tmux"
 )
 
 // PaneLister lists all tmux panes. Satisfied by tmux.Client.

@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/anomalyco/tmux-orchid/tmux"
+	"github.com/FelipeAfonso/tmux-orchid/tmux"
 )
 
 // AgentDef describes a launchable agent type.

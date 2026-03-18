@@ -8,9 +8,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/anomalyco/tmux-orchid/spawner"
-	"github.com/anomalyco/tmux-orchid/state"
-	"github.com/anomalyco/tmux-orchid/tmux"
+	"github.com/FelipeAfonso/tmux-orchid/spawner"
+	"github.com/FelipeAfonso/tmux-orchid/state"
+	"github.com/FelipeAfonso/tmux-orchid/tmux"
 )
 
 // paneCaptureInterval is how often we re-capture the selected agent's pane.

@@ -24,10 +24,30 @@ single dashboard.
 
 ## Install
 
+### Quick install (prebuilt binary)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/FelipeAfonso/tmux-orchid/main/install.sh | bash
+```
+
+This detects your OS and architecture, downloads the latest release, verifies
+the checksum, and installs to `~/.local/bin`. Override the install directory
+with:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/FelipeAfonso/tmux-orchid/main/install.sh | INSTALL_DIR=/usr/local/bin bash
+```
+
+### Go install
+
+```bash
+go install github.com/FelipeAfonso/tmux-orchid@latest
+```
+
 ### From source (requires Go 1.23+)
 
 ```bash
-git clone https://github.com/anomalyco/tmux-orchid.git
+git clone https://github.com/FelipeAfonso/tmux-orchid.git
 cd tmux-orchid
 make install        # installs to /usr/local/bin
 ```

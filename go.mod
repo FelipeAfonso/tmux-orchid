@@ -1,4 +1,4 @@
-module github.com/anomalyco/tmux-orchid
+module github.com/FelipeAfonso/tmux-orchid
 
 go 1.26.1
 

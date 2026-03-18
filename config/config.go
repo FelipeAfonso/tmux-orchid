@@ -16,7 +16,7 @@ import (
 // exists. All values match Default() so the application behaviour is
 // unchanged; the comments guide users who want to customise things.
 const defaultConfigTOML = `# tmux-orchid configuration
-# See https://github.com/anomalyco/tmux-orchid for documentation.
+# See https://github.com/FelipeAfonso/tmux-orchid for documentation.
 
 # How often to poll tmux for changes (100ms to 1m).
 poll_interval = "2s"

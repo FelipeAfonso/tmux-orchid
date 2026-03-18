@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/anomalyco/tmux-orchid/state"
+	"github.com/FelipeAfonso/tmux-orchid/state"
 )
 
 // sidebarWidth is the fixed width of the sidebar panel.

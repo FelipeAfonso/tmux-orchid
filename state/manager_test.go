@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/anomalyco/tmux-orchid/detector"
-	"github.com/anomalyco/tmux-orchid/tmux"
+	"github.com/FelipeAfonso/tmux-orchid/detector"
+	"github.com/FelipeAfonso/tmux-orchid/tmux"
 )
 
 // mockSource implements Source for testing.

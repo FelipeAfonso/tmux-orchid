@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/anomalyco/tmux-orchid/tmux"
+	"github.com/FelipeAfonso/tmux-orchid/tmux"
 )
 
 // PaneCapture provides the ability to capture pane content.

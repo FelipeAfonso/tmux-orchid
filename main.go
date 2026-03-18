@@ -11,10 +11,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/anomalyco/tmux-orchid/config"
-	"github.com/anomalyco/tmux-orchid/state"
-	"github.com/anomalyco/tmux-orchid/tmux"
-	"github.com/anomalyco/tmux-orchid/tui"
+	"github.com/FelipeAfonso/tmux-orchid/config"
+	"github.com/FelipeAfonso/tmux-orchid/state"
+	"github.com/FelipeAfonso/tmux-orchid/tmux"
+	"github.com/FelipeAfonso/tmux-orchid/tui"
 )
 
 func main() {

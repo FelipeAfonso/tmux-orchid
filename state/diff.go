@@ -1,6 +1,6 @@
 package state
 
-import "github.com/anomalyco/tmux-orchid/detector"
+import "github.com/FelipeAfonso/tmux-orchid/detector"
 
 // diffSnapshots compares an old and new snapshot, returning a list of
 // granular events describing what changed.

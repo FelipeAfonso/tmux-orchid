@@ -5,8 +5,8 @@ package state
 import (
 	"time"
 
-	"github.com/anomalyco/tmux-orchid/detector"
-	"github.com/anomalyco/tmux-orchid/tmux"
+	"github.com/FelipeAfonso/tmux-orchid/detector"
+	"github.com/FelipeAfonso/tmux-orchid/tmux"
 )
 
 // PaneAgent pairs a tmux pane with its detected agent information.
